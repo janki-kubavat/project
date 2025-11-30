@@ -1,0 +1,11 @@
+{# templates/partials/navbar.html #}
+<nav class="navbar">
+  <a class="site-title" href="/">Task Prioritizer</a>
+
+  {% if user.is_authenticated %}
+    <a class="btn-ghost" href="{% url 'logout' %}">Sign out</a>
+  {% else %}
+    <a class="btn" href="/accounts/login/">Sign in</a>
+    <a class="btn-ghost" href="/accounts/register/">Sign up</a>
+  {% endif %}
+</nav>

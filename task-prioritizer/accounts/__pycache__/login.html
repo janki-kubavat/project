@@ -1,0 +1,51 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sign in — Task Prioritizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- theme link — theme.js will swap href when toggled -->
+  <link id="site-theme" rel="stylesheet" href="{% static 'theme-midnight.css' %}">
+</head>
+<body>
+
+  {% include 'partials/navbar.html' %}
+
+  <main style="display:flex; justify-content:center; align-items:center; min-height:70vh; padding:40px 16px;">
+    <section class="auth-card" role="main" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">Welcome back</h2>
+
+      {% if messages %}
+        <ul class="messages">
+          {% for message in messages %}
+            <li class="muted">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="form-row">
+          <label style="min-width:100px;">Username</label>
+          <input name="username" type="text" required value="{{ request.POST.username|default:'' }}">
+        </div>
+
+        <div class="form-row">
+          <label style="min-width:100px;">Password</label>
+          <input name="password" type="password" required>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:12px;">
+          <button class="btn" type="submit">Sign in</button>
+          <a class="btn-ghost" href="{% url 'register' %}">Create account</a>
+        </div>
+      </form>
+
+      <p class="muted" style="margin-top:14px;">Forgot password? <a href="#" style="color:inherit; text-decoration:underline;">Reset</a></p>
+    </section>
+  </main>
+
+  <script src="{% static 'theme.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<section class="layout centered-layout">
+  <div class="auth-card">
+    <h2>Sign in</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-row"><input name="username" placeholder="Username" required></div>
+      <div class="form-row"><input name="password" type="password" placeholder="Password" required></div>
+      <div class="form-row">
+        <button class="btn" type="submit">Sign in</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

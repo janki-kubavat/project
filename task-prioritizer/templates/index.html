@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Home — Task Prioritizer{% endblock %}
+
+{% block content %}
+<main style="max-width:1100px; margin:36px auto; padding:0 20px;">
+  <h1 style="font-size:42px; margin-bottom:12px;">Task Prioritizer</h1>
+  <p class="muted">Paste a JSON array of tasks, choose a strategy, and click Analyze.</p>
+
+  <label>Strategy</label>
+  <select id="strategy-select" style="display:block; margin:8px 0 18px; width:260px;">
+    <option>Smart Balance</option>
+    <option>Fastest Wins</option>
+    <option>High Impact</option>
+    <option>Deadline Driven</option>
+  </select>
+
+  <textarea id="tasks-json" style="width:100%;height:160px;border-radius:8px;padding:12px;">
+[{"id":"t1","title":"Example","due_date":"2025-12-01","estimated_hours":2,"importance":7,"dependencies":[]} ]
+  </textarea>
+
+  <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button id="analyze-btn" class="btn">Analyze</button>
+    <button id="load-example-btn" class="btn-ghost">Load Example</button>
+    <button id="save-db-btn" class="btn-ghost">Save JSON → DB</button>
+    <button id="load-saved-btn" class="btn-ghost">Load Saved</button>
+    <button id="export-csv-btn" class="btn">Export CSV</button>
+  </div>
+</main>
+
+<script>
+  const savedUrl = "{% url 'tasks:saved_tasks' %}";
+  const exportUrl = "{% url 'tasks:export_tasks_csv' %}";
+  const textarea = document.getElementById('tasks-json');
+
+  document.getElementById('load-example-btn').addEventListener('click', () => {
+    textarea.value = JSON.stringify([{
+      id: "t1", title: "Example",
+      due_date: "2025-12-01", estimated_hours: 2,
+      importance: 7, dependencies: []
+    }], null, 2);
+  });
+
+  document.getElementById('load-saved-btn').addEventListener('click', async () => {
+    try {
+      const resp = await fetch(savedUrl);
+      if (!resp.ok) throw new Error('Failed to load saved tasks: ' + resp.status);
+      const data = await resp.json();
+      textarea.value = JSON.stringify(data, null, 2);
+      alert('Loaded saved tasks');
+    } catch (err) { alert(err.message); console.error(err); }
+  });
+
+  document.getElementById('save-db-btn').addEventListener('click', async () => {
+    try {
+      const payload = JSON.parse(textarea.value);
+      const resp = await fetch(savedUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify(payload)
+      });
+      if (!resp.ok) { const txt = await resp.text(); throw new Error('Save failed: ' + txt); }
+      const r = await resp.json();
+      alert('Saved: ' + JSON.stringify(r));
+    } catch (err) { alert(err.message); console.error(err); }
+  });
+
+  document.getElementById('export-csv-btn').addEventListener('click', async () => {
+    try {
+      const resp = await fetch(exportUrl);
+      if (!resp.ok) throw new Error('Export failed: ' + resp.status);
+      const blob = await resp.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'tasks.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) { alert(err.message); console.error(err); }
+  });
+
+  function getCookie(name) {
+    const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return v ? v.pop() : '';
+  }
+</script>
+{% endblock %}

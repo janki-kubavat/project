@@ -1,0 +1,171 @@
+import csv
+from io import StringIO
+from django.http import HttpResponse, JsonResponse
+from rest_framework.decorators import api_view
+from rest_framework import status
+from rest_framework.response import Response
+
+from .serializers import TaskModelSerializer
+from .models import Task
+from .scoring import compute_score, STRATEGY_PRESETS, detect_cycles
+
+
+# ----------------------------------------------------
+# MISSING FUNCTION (this fixes your error)
+# ----------------------------------------------------
+@api_view(['GET'])
+def suggest_tasks(request):
+    """
+    Placeholder endpoint used by tasks/urls.py.
+    """
+    return Response({
+        "detail": "Use POST /api/tasks/analyze/ with {'tasks': [...], 'strategy': 'Smart Balance'} "
+                  "or POST {'analyze_saved': true} to analyze saved tasks."
+    })
+
+
+# ----------------------------------------------------
+# LIST ALL SAVED TASKS
+# ----------------------------------------------------
+@api_view(['GET'])
+def saved_tasks_list(request):
+    objs = Task.objects.all().order_by('-updated_at')
+    ser = TaskModelSerializer(objs, many=True)
+    return JsonResponse({"results": ser.data}, safe=False)
+
+
+# ----------------------------------------------------
+# CREATE OR UPDATE TASKS IN DB
+# ----------------------------------------------------
+@api_view(['POST'])
+def saved_tasks_create(request):
+    data = request.data
+    created = []
+    errors = []
+
+    items = data if isinstance(data, list) else [data]
+
+    for it in items:
+        tid = it.get('id') or it.get('id_text') or str(it.get('title'))[:50]
+        defaults = {
+            'id_text': tid,
+            'title': it.get('title', 'Untitled'),
+            'due_date': it.get('due_date') or None,
+            'estimated_hours': it.get('estimated_hours') or 1.0,
+            'importance': it.get('importance') or 5,
+            'dependencies': it.get('dependencies') or []
+        }
+
+        try:
+            obj, _ = Task.objects.update_or_create(id_text=tid, defaults=defaults)
+            created.append(obj.to_dict())
+        except Exception as e:
+            errors.append({"input": it, "error": str(e)})
+
+    resp = {"created": created}
+    if errors:
+        resp["errors"] = errors
+
+    return JsonResponse(resp, status=status.HTTP_201_CREATED)
+
+
+# ----------------------------------------------------
+# UPDATE A SINGLE TASK
+# ----------------------------------------------------
+@api_view(['PUT', 'PATCH'])
+def saved_task_update(request, id_text):
+    try:
+        obj = Task.objects.get(id_text=id_text)
+    except Task.DoesNotExist:
+        return JsonResponse({"error": "not found"}, status=404)
+
+    ser = TaskModelSerializer(obj, data=request.data, partial=True)
+    if ser.is_valid():
+        ser.save()
+        return JsonResponse(ser.data)
+
+    return JsonResponse(ser.errors, status=400)
+
+
+# ----------------------------------------------------
+# DELETE TASK
+# ----------------------------------------------------
+@api_view(['DELETE'])
+def saved_task_delete(request, id_text):
+    try:
+        obj = Task.objects.get(id_text=id_text)
+        obj.delete()
+        return JsonResponse({"deleted": id_text})
+    except Task.DoesNotExist:
+        return JsonResponse({"error": "not found"}, status=404)
+
+
+# ----------------------------------------------------
+# EXPORT ALL TASKS AS CSV
+# ----------------------------------------------------
+@api_view(['GET'])
+def export_tasks_csv(request):
+    qs = Task.objects.all().order_by('id_text')
+    si = StringIO()
+    writer = csv.writer(si)
+
+    writer.writerow(['id', 'title', 'due_date', 'estimated_hours', 'importance', 'dependencies'])
+
+    for t in qs:
+        writer.writerow([
+            t.id_text,
+            t.title,
+            t.due_date or '',
+            t.estimated_hours,
+            t.importance,
+            '|'.join(t.dependencies or [])
+        ])
+
+    resp = HttpResponse(si.getvalue(), content_type='text/csv')
+    resp['Content-Disposition'] = 'attachment; filename="tasks.csv"'
+
+    return resp
+
+
+# ----------------------------------------------------
+# ANALYZE TASKS (FROM JSON OR FROM DB)
+# ----------------------------------------------------
+@api_view(['POST'])
+def analyze_tasks(request):
+    payload = request.data
+    tasks = payload.get("tasks") or []
+    strategy = payload.get("strategy", "Smart Balance")
+
+    # analyze saved tasks if requested
+    if not tasks and payload.get("analyze_saved"):
+        qs = Task.objects.all()
+        tasks = [t.to_dict() for t in qs]
+
+    validated = []
+    for t in tasks:
+        validated.append({
+            "id": t.get("id") or t.get("id_text"),
+            "title": t.get("title", ""),
+            "due_date": t.get("due_date"),
+            "estimated_hours": t.get("estimated_hours", 1.0),
+            "importance": t.get("importance", 5),
+            "dependencies": t.get("dependencies", [])
+        })
+
+    tasks_map = {t['id']: t for t in validated if t['id']}
+
+    cycles = detect_cycles(tasks_map)
+    weights = STRATEGY_PRESETS.get(strategy, STRATEGY_PRESETS["Smart Balance"])
+
+    results = []
+    for t in validated:
+        score, explanation = compute_score(t, tasks_map, weights)
+        results.append({**t, "score": score, "explanation": explanation})
+
+    results_sorted = sorted(results, key=lambda x: x['score'], reverse=True)
+
+    resp = {"results": results_sorted}
+    if cycles:
+        resp["warning"] = f"Detected cycles: {cycles}"
+
+    return JsonResponse(resp)

@@ -1,0 +1,59 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Create account — Task Prioritizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link id="site-theme" rel="stylesheet" href="{% static 'theme-midnight.css' %}">
+</head>
+<body>
+
+  {% include 'partials/navbar.html' %}
+
+  <main style="display:flex; justify-content:center; align-items:flex-start; padding:48px 16px;">
+    <section style="max-width:760px; width:100%;">
+      <div class="auth-card" aria-labelledby="create-heading">
+        <h2 id="create-heading">Create account</h2>
+
+        {% if form.errors %}
+          <div class="muted" style="margin-bottom:10px;">
+            Please correct the errors below.
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'register' %}">
+          {% csrf_token %}
+
+          <div class="form-row">
+            <label style="min-width:110px;">Username</label>
+            <input name="username" type="text" required value="{{ request.POST.username|default:'' }}">
+          </div>
+
+          <div class="form-row">
+            <label style="min-width:110px;">Password</label>
+            <input name="password1" type="password" required>
+          </div>
+
+          <div class="form-row">
+            <label style="min-width:110px;">Confirm</label>
+            <input name="password2" type="password" required>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:12px;">
+            <button class="btn" type="submit">Create account</button>
+            <a class="btn-ghost" href="{% url 'login' %}">Sign in</a>
+          </div>
+        </form>
+      </div>
+
+      <div style="margin-top:22px; padding:18px; border-radius:12px; background:transparent; border:1px solid rgba(255,255,255,0.02);">
+        <h3 style="margin:0 0 8px 0; font-size:28px;">Need help?</h3>
+        <p class="muted" style="margin:0;">Tip: choose a strong password — mix letters, numbers and symbols.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="{% static 'theme.js' %}"></script>
+</body>
+</html>
